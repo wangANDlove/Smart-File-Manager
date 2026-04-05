@@ -36,11 +36,14 @@ public class SmartFileManagerApp extends Application {
             // 获取控制器并传递主舞台引用
             MainController controller = loader.getController();
 //            controller.initialize(primaryStage);
+            System.out.println("DEBUG: applicationContext is null? " + (applicationContext == null));
             // 手动注入 Spring 管理的依赖
             if (applicationContext != null) {
                 // 从 Spring 容器获取 FileMonitorService
                 FileMonitorService fileMonitorService = applicationContext.getBean(FileMonitorService.class);
                 controller.setFileMonitorService(fileMonitorService);
+            } else {
+                System.err.println("严重错误：Spring 上下文尚未初始化！无法注入 FileMonitorService");
             }
 
             // 创建场景

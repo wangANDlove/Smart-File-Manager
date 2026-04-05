@@ -1,12 +1,12 @@
 package com.smartfilemanager.config;
 
-import jdk.jfr.DataAmount;
 import lombok.Data;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.stereotype.Component;
+import java.nio.file.Paths;
 
 @Data
 @Configuration
 public class AppConfig {
-    private String watchedPath = System.getProperty("user.home"); // 默认为用户主目录
+    private String watchedPath = Paths.get(System.getProperty("user.home"), "test").toString(); // 默认为用户主目录
+    private String backupPath = Paths.get(System.getProperty("user.home"), "backup").toString();
 }

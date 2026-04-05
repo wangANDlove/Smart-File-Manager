@@ -168,8 +168,6 @@
                     <!-- 在Label元素中添加stopped状态类 -->
                     <Label fx:id="monitorStatusLabel" text="已停止" styleClass="status-label" />
 
-
-<!--                    <Label fx:id="monitorStatusLabel" text="已停止" styleClass="status-label stopped"/>-->
                 </HBox>
 
                 <VBox spacing="5" style="-fx-padding: 5 0 0 0;">
