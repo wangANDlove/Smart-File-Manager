@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import java.util.*?>
+<?import javafx.scene.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<?import javafx.scene.control.cell.PropertyValueFactory?>
+<DialogPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="com.smartfilemanager.controller.RuleEditController"
+            prefWidth="800" prefHeight="650"
+            style="-fx-padding: 20;">
+
+    <header>
+        <VBox spacing="10">
+            <Label text="⚙️ 新建整理规则"
+                   style="-fx-font-size: 20; -fx-font-weight: bold;"/>
+            <Label text="定义文件自动整理的条件和动作"
+                   style="-fx-font-size: 13; -fx-text-fill: #666;"/>
+        </VBox>
+    </header>
+
+    <content>
+        <TabPane tabClosingPolicy="UNAVAILABLE">
+            <!-- 基本信息标签页 -->
+            <Tab text="📋 基本信息">
+                <VBox spacing="15" style="-fx-padding: 15;">
+                    <VBox spacing="5">
+                        <Label text="规则名称 *" style="-fx-font-weight: bold;"/>
+                        <TextField fx:id="ruleNameField" promptText="例如：PDF文件自动归档"/>
+                    </VBox>
+
+                    <VBox spacing="5">
+                        <Label text="规则描述" style="-fx-font-weight: bold;"/>
+                        <TextArea fx:id="ruleDescriptionArea" promptText="简要描述这个规则的用途..."
+                                  prefRowCount="3" wrapText="true"/>
+                    </VBox>
+
+                    <HBox spacing="20">
+                        <VBox spacing="5" HBox.hgrow="ALWAYS">
+                            <Label text="监控文件夹 *" style="-fx-font-weight: bold;"/>
+                            <ComboBox fx:id="watchFolderCombo" prefWidth="Infinity"
+                                      promptText="选择要监控的文件夹"/>
+                        </VBox>
+
+                        <VBox spacing="5">
+                            <Label text="优先级" style="-fx-font-weight: bold;"/>
+                            <Spinner fx:id="prioritySpinner" prefWidth="100">
+                                <valueFactory>
+                                    <SpinnerValueFactory.IntegerSpinnerValueFactory min="0" max="100" initialValue="0"/>
+                                </valueFactory>
+                            </Spinner>
+                        </VBox>
+                    </HBox>
+
+                    <VBox spacing="5">
+                        <Label text="条件逻辑" style="-fx-font-weight: bold;"/>
+                        <HBox spacing="15">
+                            <RadioButton fx:id="andLogicRadio" text="满足所有条件 (AND)"
+                                         selected="true" toggleGroup="$conditionLogicGroup"/>
+                            <RadioButton fx:id="orLogicRadio" text="满足任一条件 (OR)"
+                                         toggleGroup="$conditionLogicGroup"/>
+                        </HBox>
+                    </VBox>
+
+                    <CheckBox fx:id="enabledCheckBox" text="启用此规则" selected="true"/>
+                </VBox>
+            </Tab>
+
+            <!-- 条件配置标签页 -->
+            <Tab text="🔍 匹配条件">
+                <VBox spacing="10" style="-fx-padding: 15;">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="当文件满足以下条件时触发："
+                               style="-fx-font-weight: bold; -fx-font-size: 14;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="➕ 添加条件" onAction="#handleAddCondition"
+                                styleClass="primary-button"/>
+                    </HBox>
+
+                    <TableView fx:id="conditionsTable" VBox.vgrow="ALWAYS" editable="true">
+                        <columns>
+                            <TableColumn text="条件类型" prefWidth="150" fx:id="conditionTypeColumn">
+                                <cellValueFactory>
+                                    <PropertyValueFactory property="conditionType"/>
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn text="操作符" prefWidth="120" fx:id="operatorColumn">
+                                <cellValueFactory>
+                                    <PropertyValueFactory property="operator"/>
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn text="条件值" prefWidth="200" fx:id="valueColumn">
+                                <cellValueFactory>
+                                    <PropertyValueFactory property="value"/>
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn text="操作" prefWidth="80" fx:id="conditionActionColumn"/>
+                        </columns>
+                    </TableView>
+
+                    <VBox styleClass="info-box" spacing="5" style="-fx-padding: 10; -fx-background-color: #e3f2fd; -fx-border-color: #2196f3; -fx-border-radius: 5;">
+                        <Label text="💡 提示：" style="-fx-font-weight: bold; -fx-text-fill: #1976d2;"/>
+                        <Label text="• 文件名：支持通配符和正则表达式"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                        <Label text="• 文件扩展名：多个扩展名用逗号分隔，如 pdf,docx"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                        <Label text="• 文件大小：支持单位 KB, MB, GB，如 10MB"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                        <Label text="• 文件日期：输入天数，如 30 表示30天前"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                    </VBox>
+                </VBox>
+            </Tab>
+
+            <!-- 动作配置标签页 -->
+            <Tab text="⚡ 执行动作">
+                <VBox spacing="10" style="-fx-padding: 15;">
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="执行以下操作："
+                               style="-fx-font-weight: bold; -fx-font-size: 14;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="➕ 添加动作" onAction="#handleAddAction"
+                                styleClass="primary-button"/>
+                    </HBox>
+
+                    <TableView fx:id="actionsTable" VBox.vgrow="ALWAYS" editable="true">
+                        <columns>
+                            <TableColumn text="动作类型" prefWidth="150" fx:id="actionTypeColumn">
+                                <cellValueFactory>
+                                    <PropertyValueFactory property="type"/>
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn text="目标路径/模式" prefWidth="300" fx:id="targetColumn">
+                                <cellValueFactory>
+                                    <PropertyValueFactory property="target"/>
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn text="操作" prefWidth="80" fx:id="actionActionColumn"/>
+                        </columns>
+                    </TableView>
+
+                    <VBox styleClass="info-box" spacing="5" style="-fx-padding: 10; -fx-background-color: #fff3e0; -fx-border-color: #ff9800; -fx-border-radius: 5;">
+                        <Label text="💡 路径变量：" style="-fx-font-weight: bold; -fx-text-fill: #f57c00;"/>
+                        <Label text="• {year} - 当前年份 (如 2026)"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                        <Label text="• {month} - 当前月份 (如 04)"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                        <Label text="• {day} - 当前日期 (如 08)"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                        <Label text="• {fileType} - 文件扩展名 (如 pdf)"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                        <Label text="• {originalName} - 原始文件名（不含扩展名）"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                        <Label text="• {date} - 当前日期 (yyyyMMdd格式)"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                    </VBox>
+
+                    <VBox styleClass="warning-box" spacing="5" style="-fx-padding: 10; -fx-background-color: #ffebee; -fx-border-color: #f44336; -fx-border-radius: 5;">
+                        <Label text="⚠️ 注意事项：" style="-fx-font-weight: bold; -fx-text-fill: #d32f2f;"/>
+                        <Label text="• 移动/复制操作会按顺序执行，请确保路径存在"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                        <Label text="• 删除操作不可恢复，请谨慎使用"
+                               style="-fx-text-fill: #555; -fx-font-size: 11;"/>
+                    </VBox>
+                </VBox>
+            </Tab>
+
+            <!-- 预览标签页 -->
+            <Tab text="👁️ 规则预览">
+                <VBox spacing="10" style="-fx-padding: 15;">
+                    <Label text="规则配置预览：" style="-fx-font-weight: bold; -fx-font-size: 14;"/>
+
+                    <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS">
+                        <VBox spacing="10" style="-fx-padding: 10;">
+                            <VBox styleClass="preview-section" spacing="5">
+                                <Label text="📋 规则名称：" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="previewRuleName" text="-"
+                                       style="-fx-background-color: #f5f5f5; -fx-padding: 8; -fx-wrap-text: true;"/>
+                            </VBox>
+
+                            <VBox styleClass="preview-section" spacing="5">
+                                <Label text="📝 描述：" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="previewDescription" text="-"
+                                       style="-fx-background-color: #f5f5f5; -fx-padding: 8; -fx-wrap-text: true;"/>
+                            </VBox>
+
+                            <VBox styleClass="preview-section" spacing="5">
+                                <Label text="📂 监控文件夹：" style="-fx-font-weight: bold;"/>
+                                <Label fx:id="previewWatchFolder" text="-"
+                                       style="-fx-background-color: #f5f5f5; -fx-padding: 8;"/>
+                            </VBox>
+
+                            <VBox styleClass="preview-section" spacing="5">
+                                <Label text="🔍 匹配条件：" style="-fx-font-weight: bold;"/>
+                                <ListView fx:id="previewConditionsList" prefHeight="150"/>
+                            </VBox>
+
+                            <VBox styleClass="preview-section" spacing="5">
+                                <Label text="⚡ 执行动作：" style="-fx-font-weight: bold;"/>
+                                <ListView fx:id="previewActionsList" prefHeight="150"/>
+                            </VBox>
+                        </VBox>
+                    </ScrollPane>
+
+                    <Button text="🔄 刷新预览" onAction="#handleRefreshPreview"
+                            styleClass="secondary-button"/>
+                </VBox>
+            </Tab>
+        </TabPane>
+    </content>
+
+    <buttonTypes>
+        <ButtonType text="取消" buttonData="CANCEL_CLOSE"/>
+        <ButtonType text="测试规则" buttonData="APPLY"/>
+        <ButtonType text="保存" buttonData="OK_DONE"/>
+    </buttonTypes>
+</DialogPane>
+

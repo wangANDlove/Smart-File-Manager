@@ -316,7 +316,7 @@
                                         style="-fx-font-size: 12;"/>
                             </HBox>
 
-                            <TableView fx:id="recentActivitiesTable" prefHeight="200">
+                            <TableView fx:id="recentActivitiesTable" prefHeight="200" editable="false">
                                 <columns>
                                     <TableColumn text="时间" prefWidth="120">
                                         <cellValueFactory>
@@ -387,40 +387,50 @@
                         <Button text="导出规则" onAction="#handleExportRule"/>
                     </HBox>
 
+
                     <TableView fx:id="rulesTable" VBox.vgrow="ALWAYS">
                         <columns>
-                            <TableColumn text="启用" prefWidth="50">
-                                <cellValueFactory>
-                                    <PropertyValueFactory property="enabled"/>
-                                </cellValueFactory>
-                            </TableColumn>
-                            <TableColumn text="规则名称" prefWidth="150">
-                                <cellValueFactory>
-                                    <PropertyValueFactory property="name"/>
-                                </cellValueFactory>
-                            </TableColumn>
-                            <TableColumn text="条件" prefWidth="200">
-                                <cellValueFactory>
-                                    <PropertyValueFactory property="condition"/>
-                                </cellValueFactory>
-                            </TableColumn>
-                            <TableColumn text="目标文件夹" prefWidth="250">
-                                <cellValueFactory>
-                                    <PropertyValueFactory property="targetPath"/>
-                                </cellValueFactory>
-                            </TableColumn>
-                            <TableColumn text="优先级" prefWidth="60">
-                                <cellValueFactory>
-                                    <PropertyValueFactory property="priority"/>
-                                </cellValueFactory>
-                            </TableColumn>
-                            <TableColumn text="操作" prefWidth="100">
-                                <cellValueFactory>
-                                    <PropertyValueFactory property="actions"/>
-                                </cellValueFactory>
-                            </TableColumn>
+                            <TableColumn fx:id="ruleEnabledColumn" text="启用" prefWidth="60"/>
+                            <TableColumn fx:id="ruleNameColumn" text="规则名称" prefWidth="180"/>
+                            <TableColumn fx:id="ruleWatchFolderColumn" text="监控文件夹" prefWidth="200"/>
+                            <TableColumn fx:id="rulePriorityColumn" text="优先级" prefWidth="80"/>
+                            <TableColumn fx:id="ruleConditionCountColumn" text="条件数" prefWidth="80"/>
                         </columns>
                     </TableView>
+<!--                    <TableView fx:id="rulesTable" VBox.vgrow="ALWAYS">-->
+<!--                        <columns>-->
+<!--                            <TableColumn text="启用" prefWidth="50">-->
+<!--                                <cellValueFactory>-->
+<!--                                    <PropertyValueFactory property="enabled"/>-->
+<!--                                </cellValueFactory>-->
+<!--                            </TableColumn>-->
+<!--                            <TableColumn text="规则名称" prefWidth="180">-->
+<!--                                <cellValueFactory>-->
+<!--                                    <PropertyValueFactory property="name"/>-->
+<!--                                </cellValueFactory>-->
+<!--                            </TableColumn>-->
+<!--                            <TableColumn text="条件" prefWidth="200">-->
+<!--                                <cellValueFactory>-->
+<!--                                    <PropertyValueFactory property="condition"/>-->
+<!--                                </cellValueFactory>-->
+<!--                            </TableColumn>-->
+<!--                            <TableColumn text="目标文件夹" prefWidth="250">-->
+<!--                                <cellValueFactory>-->
+<!--                                    <PropertyValueFactory property="targetPath"/>-->
+<!--                                </cellValueFactory>-->
+<!--                            </TableColumn>-->
+<!--                            <TableColumn text="优先级" prefWidth="60">-->
+<!--                                <cellValueFactory>-->
+<!--                                    <PropertyValueFactory property="priority"/>-->
+<!--                                </cellValueFactory>-->
+<!--                            </TableColumn>-->
+<!--                            <TableColumn text="操作" prefWidth="100">-->
+<!--                                <cellValueFactory>-->
+<!--                                    <PropertyValueFactory property="actions"/>-->
+<!--                                </cellValueFactory>-->
+<!--                            </TableColumn>-->
+<!--                        </columns>-->
+<!--                    </TableView>-->
 
                     <HBox spacing="10" alignment="CENTER_RIGHT">
                         <Label text="共" fx:id="totalRulesCountLabel" />
@@ -455,12 +465,28 @@
 
                         <VBox spacing="5" VBox.vgrow="ALWAYS">
                             <Label text="最近文件活动" style="-fx-font-weight: bold;"/>
-                            <TableView fx:id="fileActivitiesTable" VBox.vgrow="ALWAYS">
+                            <TableView fx:id="fileActivitiesTable" VBox.vgrow="ALWAYS" editable="false">
                                 <columns>
-                                    <TableColumn text="时间" prefWidth="120"/>
-                                    <TableColumn text="事件" prefWidth="100"/>
-                                    <TableColumn text="文件" prefWidth="250"/>
-                                    <TableColumn text="操作" prefWidth="100"/>
+                                    <TableColumn text="时间" prefWidth="120">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="time"/>
+                                        </cellValueFactory>
+                                    </TableColumn>
+                                    <TableColumn text="事件" prefWidth="100">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="operation"/>
+                                        </cellValueFactory>
+                                    </TableColumn>
+                                    <TableColumn text="文件" prefWidth="250">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="fileName"/>
+                                        </cellValueFactory>
+                                    </TableColumn>
+                                    <TableColumn text="操作" prefWidth="100">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="status"/>
+                                        </cellValueFactory>
+                                    </TableColumn>
                                 </columns>
                             </TableView>
                         </VBox>

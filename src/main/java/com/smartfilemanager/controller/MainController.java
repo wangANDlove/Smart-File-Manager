@@ -1,8 +1,12 @@
 package com.smartfilemanager.controller;
 
 import com.smartfilemanager.dao.DatabaseManager;
+import com.smartfilemanager.dao.FileActivityDAO;
 import com.smartfilemanager.dao.MonitorFoldersDAO;
+import com.smartfilemanager.dao.OrganizeRuleDAO;
+import com.smartfilemanager.model.domain.ActivityRecord;
 import com.smartfilemanager.model.domain.MonitorFolders;
+import com.smartfilemanager.model.domain.OrganizeRule;
 import com.smartfilemanager.service.core.FileMonitorService;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -12,6 +16,7 @@ import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 
@@ -57,13 +62,18 @@ public class MainController implements Initializable {
 
     // 中间组件 - 规则管理
     @FXML private TextField ruleSearchField;
-    @FXML private TableView<Rule> rulesTable;
+    @FXML private TableView<OrganizeRule> rulesTable;
+    @FXML private TableColumn<OrganizeRule, Boolean> ruleEnabledColumn;
+    @FXML private TableColumn<OrganizeRule, String> ruleNameColumn;
+    @FXML private TableColumn<OrganizeRule, String> ruleWatchFolderColumn;
+    @FXML private TableColumn<OrganizeRule, Integer> rulePriorityColumn;
+    @FXML private TableColumn<OrganizeRule, Integer> ruleConditionCountColumn;
     @FXML private Label totalRulesCountLabel;
 
     // 中间组件 - 文件监控
     @FXML private ToggleButton monitorToggleButton;
     @FXML private ListView<String> monitorFoldersList;
-    @FXML private TableView<FileActivity> fileActivitiesTable;
+    @FXML private TableView<ActivityRecord> fileActivitiesTable;
 
     // 中间组件 - 智能搜索
     @FXML private TextField searchInput;
@@ -104,8 +114,13 @@ public class MainController implements Initializable {
     private Stage primaryStage;
 
     FileMonitorService fileMonitorService;
-    @Autowired
+
     private DatabaseManager databaseManager;
+
+    private FileActivityDAO fileActivityDAO;
+
+    private com.smartfilemanager.dao.OrganizeRuleDAO organizeRuleDAO;
+
     MonitorFoldersDAO monitorFoldersDAO;
 
 
@@ -117,13 +132,6 @@ public class MainController implements Initializable {
         setupEventHandlers();
         // 初始化监控状态
         initializeMonitorStatus();
-        // 初始化数据库
-//        try {
-//            databaseManager.initialize();
-//            System.out.println("数据库初始化成功");
-//        } catch (SQLException e) {
-//            throw new RuntimeException("数据库初始化失败",e);
-//        }
 
 
     }
@@ -140,6 +148,16 @@ public class MainController implements Initializable {
         initializeMonitorTab();
         initializeSearchTab();
         initializeStatusBar();
+    }
+    private void registerActivityListener() {
+        if (fileMonitorService != null) {
+            fileMonitorService.addActivityListener(activity -> {
+                javafx.application.Platform.runLater(() -> {
+                    loadRecentActivities();
+                    loadFileActivities();
+                });
+            });
+        }
     }
 
     private void loadInitialData() {
@@ -177,6 +195,16 @@ public class MainController implements Initializable {
     @FXML
     private void handleNewRule() {
         // 新建规则
+        showRuleEditDialog(null);
+    }
+
+
+    private void showAlert(Alert.AlertType type, String title, String message) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     @FXML
@@ -374,8 +402,88 @@ public class MainController implements Initializable {
 
     @FXML
     private void handleEditRule() {
-        // 编辑规则
+        OrganizeRule selectedRule = rulesTable.getSelectionModel().getSelectedItem();
+        if (selectedRule != null) {
+            showRuleEditDialog(selectedRule);
+        } else {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("提示");
+            alert.setHeaderText(null);
+            alert.setContentText("请先在规则列表中选择要编辑的规则");
+            alert.showAndWait();
+        }
     }
+
+    private void showRuleEditDialog(OrganizeRule rule) {
+        try {
+            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(
+                    getClass().getResource("/view/fxml/rule-edit-dialog.fxml")
+            );
+
+            DialogPane dialogPane = loader.load();
+            RuleEditController controller = loader.getController();
+
+            // 先注入依赖（这会自动触发 loadWatchFolders）
+            if (monitorFoldersDAO != null) {
+                controller.setMonitorFoldersDAO(monitorFoldersDAO);
+            } else {
+                System.err.println("警告：monitorFoldersDAO 未初始化");
+                showAlert(Alert.AlertType.ERROR, "错误", "系统初始化未完成，请重启应用");
+                return;
+            }
+
+            if (rule != null) {
+                controller.setRule(rule);
+            }
+
+            Dialog<OrganizeRule> dialog = new Dialog<>();
+            dialog.setDialogPane(dialogPane);
+            dialog.setTitle(rule == null ? "新建规则" : "编辑规则");
+
+            // 设置结果转换器
+            dialog.setResultConverter(buttonType -> {
+                ButtonBar.ButtonData data = buttonType == null ? null : buttonType.getButtonData();
+                if (data == ButtonBar.ButtonData.OK_DONE) {
+                    return controller.getRule();
+                }
+                return null;
+            });
+
+            // 获取测试按钮并设置行为
+            Button testButton = (Button) dialogPane.lookupButton(ButtonType.APPLY);
+            if (testButton != null) {
+                testButton.setText("测试规则");
+                testButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+                    controller.handleTestRule();
+                    event.consume();
+                });
+            }
+
+            //保存处理结果
+            dialog.showAndWait().ifPresent(savedRule -> {
+                try {
+                    if (rule == null) {
+                        System.out.println("保存规则: " + savedRule);
+                        organizeRuleDAO.insertRule(savedRule);
+                        showAlert(Alert.AlertType.INFORMATION, "成功", "规则创建成功");
+                    } else {
+                        savedRule.setId(rule.getId());
+                        organizeRuleDAO.updateRule(savedRule);
+                        showAlert(Alert.AlertType.INFORMATION, "成功", "规则更新成功");
+                    }
+                    loadRules();
+                } catch (SQLException e) {
+                    showAlert(Alert.AlertType.ERROR, "错误", "保存规则失败: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            });
+
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR, "错误", "打开规则编辑器失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
 
     @FXML
     private void handleDeleteRule() {
@@ -449,6 +557,7 @@ public class MainController implements Initializable {
     @FXML
     private void handleViewAllActivities() {
         // 查看全部活动
+        mainTabPane.getSelectionModel().select(2);
     }
 
     // ========== 规则管理事件处理方法 ==========
@@ -560,10 +669,91 @@ public class MainController implements Initializable {
 
     private void initializeRulesTab() {
         // 初始化规则管理标签页
+        setupRulesTable();
+    }
+    private void setupRulesTable() {
+        if (rulesTable == null) return;
+
+        // 启用状态列
+        ruleEnabledColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("enabled"));
+        ruleEnabledColumn.setCellFactory(col -> new TableCell<OrganizeRule, Boolean>() {
+            @Override
+            protected void updateItem(Boolean item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(item ? "✓" : "✗");
+                    setStyle(item ? "-fx-text-fill: #4caf50; -fx-font-weight: bold;" : "-fx-text-fill: #f44336;");
+                }
+            }
+        });
+
+        // 规则名称列
+        ruleNameColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("name"));
+
+        // 监控文件夹列
+        ruleWatchFolderColumn.setCellValueFactory(data -> {
+            OrganizeRule rule = data.getValue();
+            if (rule == null || rule.getWatchFolderId() == null) {
+                return new javafx.beans.property.SimpleStringProperty("-");
+            }
+
+            try {
+                com.smartfilemanager.model.domain.MonitorFolders folder =
+                        monitorFoldersDAO.getFolderById(rule.getWatchFolderId());
+                String path = folder != null ? folder.getFolderPath() : "未知文件夹";
+                return new javafx.beans.property.SimpleStringProperty(path);
+            } catch (Exception e) {
+                System.err.println("获取文件夹路径失败: " + e.getMessage());
+                return new javafx.beans.property.SimpleStringProperty("错误");
+            }
+        });
+
+        // 优先级列
+        rulePriorityColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("priority"));
+
+        // 条件数列
+        ruleConditionCountColumn.setCellValueFactory(data -> {
+            OrganizeRule rule = data.getValue();
+            int count = rule.getConditions() != null ? rule.getConditions().size() : 0;
+            return new javafx.beans.property.SimpleIntegerProperty(count).asObject();
+        });
     }
 
     private void initializeMonitorTab() {
         // 初始化文件监控标签页
+
+    }
+
+    private void loadFileActivities() {
+        try {
+            if (fileActivityDAO == null) {
+                System.err.println("错误1：fileActivityDAO 尚未注入");
+                return;
+            }
+
+            List<com.smartfilemanager.model.domain.FileActivity> activities = fileActivityDAO.getRecentActivities(10);
+
+            ObservableList<ActivityRecord> records = FXCollections.observableArrayList();
+            for (com.smartfilemanager.model.domain.FileActivity activity : activities) {
+                ActivityRecord record = new ActivityRecord();
+                record.setTime(activity.getCreatedAt() != null ? activity.getCreatedAt().toString() : "未知时间");
+                record.setOperation(activity.getActivityType() != null ? activity.getActivityType().toString() : "未知");
+                record.setFileName(activity.getFilePath() != null ? activity.getFilePath() : "未知路径");
+                record.setStatus("完成");
+                records.add(record);
+            }
+
+            fileActivitiesTable.setItems(FXCollections.observableArrayList(records));
+
+            System.out.println("已加载 " + records.size() + " 条文件活动记录到监控表格");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("加载文件活动记录失败：" + e.getMessage());
+        }
     }
 
     private void initializeSearchTab() {
@@ -578,12 +768,71 @@ public class MainController implements Initializable {
         // 加载统计数据
     }
 
+    /**
+     *  加载最近活动
+     */
     private void loadRecentActivities() {
-        // 加载最近活动
+        try {
+            if (fileActivityDAO == null) {
+                System.err.println("错误：fileActivityDAO 尚未注入");
+                return;
+            }
+
+            List<com.smartfilemanager.model.domain.FileActivity> activities = fileActivityDAO.getRecentActivities(10);
+
+            ObservableList<ActivityRecord> records = FXCollections.observableArrayList();
+            for (com.smartfilemanager.model.domain.FileActivity activity : activities) {
+                ActivityRecord record = new ActivityRecord();
+                record.setTime(activity.getCreatedAt() != null ? activity.getCreatedAt().toString() : "未知时间");
+                record.setOperation(activity.getActivityType() != null ? activity.getActivityType().toString() : "未知");
+                record.setFileName(activity.getFilePath() != null ? activity.getFilePath() : "未知路径");
+                record.setStatus("完成");
+                records.add(record);
+            }
+
+            recentActivitiesTable.setItems(FXCollections.observableArrayList(records));
+
+            System.out.println("已加载 " + records.size() + " 条最近活动记录");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("加载最近活动记录失败：" + e.getMessage());
+        }
     }
 
     private void loadRules() {
         // 加载规则
+        try {
+            if (organizeRuleDAO == null) {
+                System.err.println("错误：organizeRuleDAO 尚未注入");
+                return;
+            }
+
+            List<OrganizeRule> rules = organizeRuleDAO.getAllRules();
+            ObservableList<OrganizeRule> observableRules = FXCollections.observableArrayList(rules);
+
+            rulesTable.setItems(observableRules);
+
+            // 更新规则计数
+            if (totalRulesCountLabel != null) {
+                totalRulesCountLabel.setText(String.valueOf(rules.size()));
+            }
+            if (totalRulesLabel != null) {
+                totalRulesLabel.setText(String.valueOf(rules.size()));
+            }
+            if (activeRuleCountLabel != null) {
+                long activeCount = rules.stream()
+                        .filter(OrganizeRule::getEnabled)
+                        .count();
+                activeRuleCountLabel.setText(String.valueOf(activeCount));
+            }
+
+            System.out.println("已加载 " + rules.size() + " 个规则");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("加载规则失败：" + e.getMessage());
+        }
     }
 
 
@@ -634,24 +883,75 @@ public class MainController implements Initializable {
         handleStartMonitoring();
     }
 
+    /**
+     * 注入 FileMonitorService（由 SmartFileManagerApp 调用）
+     */
     public void setFileMonitorService(FileMonitorService fileMonitorService) {
         this.fileMonitorService = fileMonitorService;
-        // 【关键修改】依赖注入成功后，立即触发数据加载
         if (this.fileMonitorService != null) {
             System.out.println("FileMonitorService 注入成功，开始加载初始数据...");
+            registerActivityListener();
             loadInitialData();
+            initializeFileActivitiesTable();
         }
+    }
+
+    private void initializeFileActivitiesTable() {
+        if (fileActivitiesTable == null) {
+            System.err.println("错误：fileActivitiesTable 为 null");
+            return;
+        }
+
+        if (fileActivitiesTable.getColumns().isEmpty()) {
+            TableColumn<ActivityRecord, String> timeColumn = new TableColumn<>("时间");
+            timeColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("time"));
+            timeColumn.setPrefWidth(120);
+
+            TableColumn<ActivityRecord, String> eventColumn = new TableColumn<>("事件");
+            eventColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("operation"));
+            eventColumn.setPrefWidth(100);
+
+            TableColumn<ActivityRecord, String> fileColumn = new TableColumn<>("文件");
+            fileColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("fileName"));
+            fileColumn.setPrefWidth(250);
+
+            TableColumn<ActivityRecord, String> actionColumn = new TableColumn<>("操作");
+            actionColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("status"));
+            actionColumn.setPrefWidth(100);
+
+            fileActivitiesTable.getColumns().addAll(timeColumn, eventColumn, fileColumn, actionColumn);
+        }
+
+        loadFileActivities();
+    }
+
+    public void setFileActivityDAO(FileActivityDAO fileActivityDAO) {
+        this.fileActivityDAO = fileActivityDAO;
+        System.out.println("FileActivityDAO 注入成功");
+    }
+
+    /**
+     * 注入 MonitorFoldersDAO（由 SmartFileManagerApp 调用）
+     */
+    public void setMonitorFoldersDAO(MonitorFoldersDAO monitorFoldersDAO) {
+        this.monitorFoldersDAO = monitorFoldersDAO;
+        System.out.println("MonitorFoldersDAO 注入成功");
+    }
+
+    /**
+     * 注入 OrganizeRuleDAO（由 SmartFileManagerApp 调用）
+     */
+    public void setOrganizeRuleDAO(com.smartfilemanager.dao.OrganizeRuleDAO organizeRuleDAO) {
+        this.organizeRuleDAO = organizeRuleDAO;
+        System.out.println("OrganizeRuleDAO 注入成功");
     }
 
     // ========== 数据模型类 ==========
 
-    public static class ActivityRecord {
-        // 活动记录数据模型
-    }
 
-    public static class Rule {
-        // 规则数据模型
-    }
+//    public static class Rule {
+//        // 规则数据模型
+//    }
 
     public static class FileActivity {
         // 文件活动数据模型

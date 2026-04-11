@@ -96,4 +96,49 @@ public class MonitorFoldersDAO {
             throw new RuntimeException(e);
         }
     }
+
+    public String getFolderIdByPath(String string) {
+        String sql = "SELECT id FROM monitor_folders WHERE folder_path = ?";
+        try (PreparedStatement stmt = databaseManager.getConnection().prepareStatement(sql)) {
+            stmt.setString(1, string);
+            try (java.sql.ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return String.valueOf(rs.getLong("id"));
+                }
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return null;
+    }
+    public MonitorFolders getFolderById(Long folderId) {
+        String sql = "SELECT * FROM monitor_folders WHERE id = ?";
+        try (PreparedStatement stmt = databaseManager.getConnection().prepareStatement(sql)) {
+            stmt.setLong(1, folderId);
+            try (java.sql.ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    MonitorFolders folder = new MonitorFolders();
+                    folder.setId(rs.getLong("id"));
+                    folder.setFolderPath(rs.getString("folder_path"));
+                    String createdAtStr = rs.getString("created_at");
+                    if (createdAtStr != null && !createdAtStr.isEmpty()) {
+                        try {
+                            String cleanDate = createdAtStr.length() > 23 ? createdAtStr.substring(0, 23) : createdAtStr;
+                            if (!cleanDate.contains("T") && cleanDate.contains(" ")) {
+                                cleanDate = cleanDate.replace(" ", "T");
+                            }
+                            folder.setCreatedAt(java.time.LocalDateTime.parse(cleanDate));
+                        } catch (Exception e) {
+                            folder.setCreatedAt(java.time.LocalDateTime.now());
+                        }
+                    }
+                    return folder;
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return null;
+    }
 }

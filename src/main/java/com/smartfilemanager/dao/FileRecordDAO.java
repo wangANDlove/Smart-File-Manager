@@ -40,4 +40,15 @@ public class FileRecordDAO {
             throw new RuntimeException("插入文件记录失败", e);
         }
     }
+
+    public void deleteFileRecord(FileRecord fileRecord) {
+        String sql = "DELETE FROM file_records WHERE file_id = ?";
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, fileRecord.getFileId());
+            statement.executeUpdate();
+        } catch (SQLException ex) {
+            throw new RuntimeException("删除文件记录失败",ex);
+        }
+    }
 }

@@ -1,8 +1,11 @@
 package com.smartfilemanager.service.core;
 
 import com.smartfilemanager.config.AppConfig;
+import com.smartfilemanager.dao.FileActivityDAO;
 import com.smartfilemanager.dao.FileRecordDAO;
 import com.smartfilemanager.dao.MonitorFoldersDAO;
+import com.smartfilemanager.model.domain.ActivityType;
+import com.smartfilemanager.model.domain.FileActivity;
 import com.smartfilemanager.model.domain.FileRecord;
 import com.smartfilemanager.model.domain.MonitorFolders;
 import com.smartfilemanager.utils.FileIdFetcher;
@@ -12,10 +15,11 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.sql.PreparedStatement;
+
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
 public class FileMonitorService implements InitializingBean {
@@ -32,6 +36,14 @@ public class FileMonitorService implements InitializingBean {
     private FileRecordDAO fileRecordDAO;
     @Autowired
     private MonitorFoldersDAO monitorFoldersDAO = new MonitorFoldersDAO();
+    @Autowired
+    private FileActivityDAO fileActivityDAO;
+
+    @Autowired
+    private com.smartfilemanager.service.rule.FileOrganizeService fileOrganizeService;
+
+
+    private final List<FileActivityListener> activityListeners = new CopyOnWriteArrayList<>();
 
     public FileMonitorService() throws IOException {
         // 初始化WatchService实例
@@ -157,24 +169,128 @@ public class FileMonitorService implements InitializingBean {
                 System.out.println("事件类型: " + kind.name());
                 System.out.println("文件名称: " + fileName);
                 System.out.println("完整路径: " + fullPath);
-                //todo 对监控到的文件活动进行处理
-                switch (kind.name()){
-                    case "ENTRY_CREATE":
-                        break;
-                    case "ENTRY_MODIFY":
-                        break;
-                    case "ENTRY_DELETE":
-                        break;
-                    default:
-                            break;
-                }
+                String fileId = String.valueOf(FileIdFetcher.getFileId(fullPath.toString()));
+
+                String folderId = monitorFoldersDAO.getFolderIdByPath(directory.toString());
+                ActivityType activityType =  mapToActivityType(kind);
+
+                boolean isFolder = Files.isDirectory(fullPath);
+                FileActivity fileActivity = new FileActivity(
+                        fileId,
+                        fullPath.toString(),
+                        fileName.toString(),
+                        activityType,Long.parseLong(folderId));
+                //对监控到的文件活动进行处理
+                handleFileActivity(fileActivity);
                 System.out.println(kind.name() + ": " + fileName);
+                notifyActivityListeners(fileActivity);
 
                 if (!key.reset()) {
                     watchKeyToPathMap.remove(key);
                     break;
                 }
             }
+        }
+    }
+
+    /**
+     * 处理文件活动
+     */
+    private void handleFileActivity(FileActivity fileActivity) {
+        try {
+            System.out.println("处理文件活动: " + fileActivity.getActivityType() + " - " + fileActivity.getFilePath());
+
+            switch (fileActivity.getActivityType()) {
+                case CREATE:
+                    handleFileCreate(fileActivity);
+                    break;
+                case MODIFY:
+                    handleFileModify(fileActivity);
+                    break;
+                case DELETE:
+                    handleFileDelete(fileActivity);
+                    break;
+                default:
+                    System.out.println("未知的活动类型: " + fileActivity.getActivityType());
+                    break;
+            }
+            // 应用文件整理规则（仅对新创建的文件）
+            if (fileActivity.getActivityType() == ActivityType.CREATE) {
+                fileOrganizeService.processFileWithRules(fileActivity);
+            }
+        } catch (Exception e) {
+            System.err.println("处理文件活动失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 处理文件删除事件
+     */
+    private void handleFileDelete(FileActivity fileActivity) {
+        FileRecord fileRecord = new FileRecord(
+                fileActivity.getFilePath(),
+                fileActivity.getFileName(),
+                Files.isDirectory(Path.of(fileActivity.getFilePath())),
+                fileActivity.getFileId(),
+                fileActivity.getFolderId()
+        );
+        fileRecordDAO.deleteFileRecord(fileRecord);
+        try {
+            fileActivityDAO.insertFileActivity(fileActivity);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 处理文件修改事件
+     */
+    private void handleFileModify(FileActivity fileActivity) {
+        //文件修改事件和文件创建事件处理逻辑一样，这里只处理文件创建事件
+        //因为sql语句是insert or replace into
+        handleFileCreate(fileActivity);
+    }
+
+    /**
+     * 处理文件创建事件
+     */
+    private void handleFileCreate(FileActivity fileActivity) {
+        //保存文件信息到数据库，包括更新文件记录表和文件活动表
+        FileRecord fileRecord = new FileRecord(
+                fileActivity.getFilePath(),
+                fileActivity.getFileName(),
+                Files.isDirectory(Path.of(fileActivity.getFilePath())),
+                fileActivity.getFileId(),
+                fileActivity.getFolderId()
+        );
+        try {
+
+            fileRecordDAO.insertFileRecord(fileRecord);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+
+            fileActivityDAO.insertFileActivity(fileActivity);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    /**
+     * 将 WatchEvent.Kind 映射为 ActivityType
+     */
+    private ActivityType mapToActivityType(WatchEvent.Kind<?> kind) {
+        if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
+            return ActivityType.CREATE;
+        } else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
+            return ActivityType.MODIFY;
+        } else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
+            return ActivityType.DELETE;
+        } else {
+            throw new IllegalArgumentException("未知的事件类型: " + kind);
         }
     }
     public void stopMonitoring() {
@@ -223,25 +339,6 @@ public class FileMonitorService implements InitializingBean {
             throw new RuntimeException(e);
         }
     }
-    /**
-     * 根据路径获取监控文件夹 ID
-     */
-//    private Long getMonitorFolderIdByPath(String folderPath) {
-//        try {
-//            List<MonitorFolders> allFolders = monitorFoldersDAO.getAllMonitorFolders();
-//            if (allFolders != null) {
-//                for (MonitorFolders folder : allFolders) {
-//                    if (folder.getFolderPath().equals(folderPath)) {
-//                        return folder.getId();
-//                    }
-//                }
-//            }
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//        }
-//        return null;
-//    }
-
 
     /**
      * 添加监控目录到数据库
@@ -309,4 +406,23 @@ public class FileMonitorService implements InitializingBean {
             System.out.println("未找到要移除的监控文件夹：" + selectedFolder);
         }
     }
+    public void addActivityListener(FileActivityListener listener) {
+        activityListeners.add(listener);
+    }
+
+    public void removeActivityListener(FileActivityListener listener) {
+        activityListeners.remove(listener);
+    }
+
+    private void notifyActivityListeners(FileActivity activity) {
+        for (FileActivityListener listener : activityListeners) {
+            try {
+                listener.onNewActivity(activity);
+            } catch (Exception e) {
+                System.err.println("通知监听器失败: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
 }

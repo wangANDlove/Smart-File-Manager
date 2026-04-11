@@ -1,5 +1,7 @@
 package com.smartfilemanager;
 
+import com.smartfilemanager.dao.FileActivityDAO;
+import com.smartfilemanager.dao.MonitorFoldersDAO;
 import com.smartfilemanager.service.core.FileMonitorService;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -35,13 +37,35 @@ public class SmartFileManagerApp extends Application {
 
             // 获取控制器并传递主舞台引用
             MainController controller = loader.getController();
-//            controller.initialize(primaryStage);
             System.out.println("DEBUG: applicationContext is null? " + (applicationContext == null));
             // 手动注入 Spring 管理的依赖
             if (applicationContext != null) {
+                FileActivityDAO fileActivityDAO = applicationContext.getBean(FileActivityDAO.class);
+                controller.setFileActivityDAO(fileActivityDAO);
+
+                // 注入 MonitorFoldersDAO（用于规则编辑器）
+                try {
+                    MonitorFoldersDAO monitorFoldersDAO = applicationContext.getBean(MonitorFoldersDAO.class);
+                    controller.setMonitorFoldersDAO(monitorFoldersDAO);
+                    System.out.println("MonitorFoldersDAO 注入成功");
+                } catch (Exception e) {
+                    System.err.println("MonitorFoldersDAO 注入失败: " + e.getMessage());
+                }
+
+                // 注入 OrganizeRuleDAO（用于规则管理）
+                try {
+                    com.smartfilemanager.dao.OrganizeRuleDAO organizeRuleDAO =
+                            applicationContext.getBean(com.smartfilemanager.dao.OrganizeRuleDAO.class);
+                    controller.setOrganizeRuleDAO(organizeRuleDAO);
+                    System.out.println("OrganizeRuleDAO 注入成功");
+                } catch (Exception e) {
+                    System.err.println("OrganizeRuleDAO 注入失败: " + e.getMessage());
+                }
+
                 // 从 Spring 容器获取 FileMonitorService
                 FileMonitorService fileMonitorService = applicationContext.getBean(FileMonitorService.class);
                 controller.setFileMonitorService(fileMonitorService);
+
             } else {
                 System.err.println("严重错误：Spring 上下文尚未初始化！无法注入 FileMonitorService");
             }
