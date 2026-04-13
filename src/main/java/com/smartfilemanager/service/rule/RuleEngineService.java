@@ -68,6 +68,7 @@ public class RuleEngineService {
      * 评估单个条件
      */
     private boolean evaluateCondition(RuleCondition condition, FileRecord fileRecord) {
+
         switch (condition.getConditionType()) {
             case FILE_NAME:
                 return evaluateFileNameCondition(condition, fileRecord);
@@ -89,6 +90,9 @@ public class RuleEngineService {
      */
     private boolean evaluateFileNameCondition(RuleCondition condition, FileRecord fileRecord) {
         String fileName = fileRecord.getFileName();
+        if (fileName == null) {
+            return false;
+        }
         String value = condition.getValue();
 
         switch (condition.getOperator()) {

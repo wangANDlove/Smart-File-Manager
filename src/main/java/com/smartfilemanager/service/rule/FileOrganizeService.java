@@ -180,7 +180,12 @@ public class FileOrganizeService {
     }
 
     private FileRecord buildFileRecord(FileActivity fileActivity) {
-        // TODO: 从数据库或文件系统获取完整的文件信息
-        return new FileRecord();
+        return new FileRecord(
+                fileActivity.getFilePath(),
+                fileActivity.getFileName(),
+                fileActivity.getFilePath() != null && Files.isDirectory(Paths.get(fileActivity.getFilePath())),
+                fileActivity.getFileId(),
+                fileActivity.getFolderId()
+        );
     }
 }

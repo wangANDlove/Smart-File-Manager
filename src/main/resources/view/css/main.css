@@ -227,9 +227,17 @@
 }
 
 .table-row-cell:selected {
-    -fx-background-color: #E3F2FD;
-    -fx-text-fill: #1976D2;
+    -fx-background-color: #BBDEFB;
 }
+
+.table-row-cell:selected .text {
+    -fx-fill: black;
+}
+
+.table-row-cell:selected .label {
+    -fx-text-fill: black;
+}
+
 
 /* 进度条样式 */
 .progress-bar {

@@ -42,8 +42,10 @@
                     <HBox spacing="20">
                         <VBox spacing="5" HBox.hgrow="ALWAYS">
                             <Label text="监控文件夹 *" style="-fx-font-weight: bold;"/>
-                            <ComboBox fx:id="watchFolderCombo" prefWidth="Infinity"
-                                      promptText="选择要监控的文件夹"/>
+                            <ComboBox fx:id="watchFolderCombo"
+                                      promptText="选择要监控的文件夹"
+                                      prefWidth="300"
+                                      maxWidth="Infinity"/>
                         </VBox>
 
                         <VBox spacing="5">

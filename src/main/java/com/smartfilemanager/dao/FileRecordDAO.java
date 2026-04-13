@@ -7,6 +7,8 @@ import org.springframework.stereotype.Repository;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 @Repository
 public class FileRecordDAO {
@@ -50,5 +52,51 @@ public class FileRecordDAO {
         } catch (SQLException ex) {
             throw new RuntimeException("删除文件记录失败",ex);
         }
+    }
+    public List<FileRecord> getFileRecordsByFolderId(Long folderId) throws SQLException {
+        String sql = "SELECT * FROM file_records WHERE folder_id = ? ORDER BY file_name";
+        List<FileRecord> records = new ArrayList<>();
+
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setLong(1, folderId);
+
+            try (java.sql.ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    FileRecord record = new FileRecord();
+                    record.setId(rs.getInt("id"));
+                    record.setFileId(rs.getString("file_id"));
+                    record.setFilePath(rs.getString("file_path"));
+                    record.setFileName(rs.getString("file_name"));
+                    record.setIsFolder(rs.getBoolean("is_folder"));
+                    record.setFolderId(rs.getLong("folder_id"));
+                    records.add(record);
+                }
+            }
+        }
+        return records;
+    }
+
+    public List<FileRecord> getAllFileRecords() throws SQLException {
+        String sql = "SELECT * FROM file_records ORDER BY folder_id, file_name";
+        List<FileRecord> records = new ArrayList<>();
+
+        try (Connection connection = databaseManager.getConnection();
+             java.sql.Statement statement = connection.createStatement();
+             java.sql.ResultSet rs = statement.executeQuery(sql)) {
+
+            while (rs.next()) {
+                FileRecord record = new FileRecord();
+                record.setId(rs.getInt("id"));
+                record.setFileId(rs.getString("file_id"));
+                record.setFilePath(rs.getString("file_path"));
+                record.setFileName(rs.getString("file_name"));
+                record.setIsFolder(rs.getBoolean("is_folder"));
+                record.setFolderId(rs.getLong("folder_id"));
+                records.add(record);
+            }
+        }
+        return records;
     }
 }

@@ -62,6 +62,16 @@ public class SmartFileManagerApp extends Application {
                     System.err.println("OrganizeRuleDAO 注入失败: " + e.getMessage());
                 }
 
+                // 注入 FileRecordDAO（用于文件列表展示）
+                try {
+                    com.smartfilemanager.dao.FileRecordDAO fileRecordDAO =
+                            applicationContext.getBean(com.smartfilemanager.dao.FileRecordDAO.class);
+                    controller.setFileRecordDAO(fileRecordDAO);
+                    System.out.println("FileRecordDAO 注入成功");
+                } catch (Exception e) {
+                    System.err.println("FileRecordDAO 注入失败: " + e.getMessage());
+                }
+
                 // 从 Spring 容器获取 FileMonitorService
                 FileMonitorService fileMonitorService = applicationContext.getBean(FileMonitorService.class);
                 controller.setFileMonitorService(fileMonitorService);

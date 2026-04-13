@@ -141,6 +141,18 @@ public class FileMonitorService implements InitializingBean {
         moniterThread.start();
         System.out.println("监控服务已启动");
 
+        // 通知监听器刷新文件列表
+        notifyScanCompleted();
+
+    }
+
+    private void notifyScanCompleted() {
+        // 创建一个特殊的活动事件通知UI刷新
+        FileActivity scanEvent = new FileActivity();
+        scanEvent.setActivityType(ActivityType.MODIFY);
+        scanEvent.setFilePath("SCAN_COMPLETED");
+        scanEvent.setFileName("SCAN_COMPLETED");
+        notifyActivityListeners(scanEvent);
     }
 
     /**
@@ -310,33 +322,40 @@ public class FileMonitorService implements InitializingBean {
      */
     private void scanAndSaveFiles(Path directory) {
         try {
-            Long folderId = FileIdFetcher.getFileId(directory.toString()); // 获取目录ID
-            if(folderId==null){
-                System.out.println("目录ID获取失败：" + directory);
+            // 获取数据库中的监控文件夹ID（不是 Windows 文件 ID）
+            String folderIdStr = monitorFoldersDAO.getFolderIdByPath(directory.toString());
+            if(folderIdStr == null || folderIdStr.isEmpty()){
+                System.out.println("未找到监控文件夹的数据库记录：" + directory);
                 return;
             }
+            Long folderId = Long.parseLong(folderIdStr);
+            System.out.println("开始扫描目录：" + directory + "，对应 folderId=" + folderId);
+
+            int[] count = {0};
             Files.walk(directory).
                     skip(1).//跳过根目录
                     forEach(file -> {
                 long fileId = FileIdFetcher.getFileId(file.toString());
 
-                if(fileId==-1){
+                if(fileId == -1){
                     System.out.println("文件ID获取失败：" + file);
                     return;
                 }
                 boolean isFolder = Files.isDirectory(file);
                 FileRecord fileRecord = new FileRecord(file.toString(),
-                        file.getFileName().toString(), isFolder, String.valueOf(fileId),folderId);
+                        file.getFileName().toString(), isFolder, String.valueOf(fileId), folderId);
                 try {
-                    System.out.println("保存文件信息到数据库：" + fileRecord);
                     fileRecordDAO.insertFileRecord(fileRecord);
+                    count[0]++;
                 } catch (SQLException e) {
-                    throw new RuntimeException(e);
+                    System.err.println("保存文件记录失败：" + file + ", " + e.getMessage());
                 }
 
             });
+            System.out.println("目录扫描完成：" + directory + "，共保存 " + count[0] + " 个文件记录");
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.err.println("扫描目录失败：" + directory + ", " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

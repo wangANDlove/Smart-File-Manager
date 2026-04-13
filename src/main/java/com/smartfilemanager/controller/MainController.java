@@ -5,6 +5,7 @@ import com.smartfilemanager.dao.FileActivityDAO;
 import com.smartfilemanager.dao.MonitorFoldersDAO;
 import com.smartfilemanager.dao.OrganizeRuleDAO;
 import com.smartfilemanager.model.domain.ActivityRecord;
+import com.smartfilemanager.model.domain.FileRecord;
 import com.smartfilemanager.model.domain.MonitorFolders;
 import com.smartfilemanager.model.domain.OrganizeRule;
 import com.smartfilemanager.service.core.FileMonitorService;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 
@@ -75,6 +77,14 @@ public class MainController implements Initializable {
     @FXML private ListView<String> monitorFoldersList;
     @FXML private TableView<ActivityRecord> fileActivitiesTable;
 
+    // 监控文件夹中的文件列表
+    @FXML private TableView<FileRecord> monitoredFilesTable;
+    @FXML private TableColumn<FileRecord, String> monitoredFileNameColumn;
+    @FXML private TableColumn<FileRecord, String> monitoredFilePathColumn;
+    @FXML private TableColumn<FileRecord, String> monitoredFileTypeColumn;
+    @FXML private TableColumn<FileRecord, String> monitoredFileSizeColumn;
+    @FXML private TableColumn<FileRecord, String> monitoredFileModifiedColumn;
+
     // 中间组件 - 智能搜索
     @FXML private TextField searchInput;
     @FXML private ToggleGroup searchTypeGroup;
@@ -123,6 +133,8 @@ public class MainController implements Initializable {
 
     MonitorFoldersDAO monitorFoldersDAO;
 
+    private com.smartfilemanager.dao.FileRecordDAO fileRecordDAO;
+
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -155,6 +167,10 @@ public class MainController implements Initializable {
                 javafx.application.Platform.runLater(() -> {
                     loadRecentActivities();
                     loadFileActivities();
+                    // 检查是否是扫描完成事件，刷新文件列表
+                    if ("SCAN_COMPLETED".equals(activity.getFileName())) {
+                        loadMonitoredFiles();
+                    }
                 });
             });
         }
@@ -485,9 +501,35 @@ public class MainController implements Initializable {
     }
 
 
+    /**
+     * 主页面删除规则按钮响应
+     */
     @FXML
     private void handleDeleteRule() {
-        // 删除规则
+        OrganizeRule selectedRule = rulesTable.getSelectionModel().getSelectedItem();
+        if (selectedRule == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("提示");
+            alert.setHeaderText(null);
+            alert.setContentText("请先在规则列表中选择要删除的规则");
+            alert.showAndWait();
+            return;
+        }
+        Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmAlert.setTitle("确认删除");
+        confirmAlert.setHeaderText(null);
+        confirmAlert.setContentText("确定要删除规则 \""+ selectedRule.getName() + "\" 吗？");
+        java.util.Optional<ButtonType> result = confirmAlert.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            try {
+                organizeRuleDAO.deleteRule(selectedRule.getId());
+                showAlert(Alert.AlertType.INFORMATION, "成功", "规则删除成功");
+                loadRules();//刷新规则列表
+            } catch (SQLException e) {
+                showAlert(Alert.AlertType.ERROR, "错误", "删除规则失败: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
     }
 
     @FXML
@@ -677,15 +719,39 @@ public class MainController implements Initializable {
         // 启用状态列
         ruleEnabledColumn.setCellValueFactory(new javafx.scene.control.cell.PropertyValueFactory<>("enabled"));
         ruleEnabledColumn.setCellFactory(col -> new TableCell<OrganizeRule, Boolean>() {
+            private final CheckBox checkBox = new CheckBox();
+
+            {
+                checkBox.setStyle("-fx-cursor: hand;");
+                checkBox.setOnAction(event -> {
+                    OrganizeRule rule = getTableView().getItems().get(getIndex());
+                    if (rule != null) {
+                        boolean newEnabled = checkBox.isSelected();
+                        rule.setEnabled(newEnabled);
+
+                        try {
+                            organizeRuleDAO.updateRule(rule);
+                            System.out.println("规则 '" + rule.getName() + "' 已" + (newEnabled ? "启用" : "禁用"));
+
+                            loadRules();
+
+                        } catch (SQLException e) {
+                            System.err.println("更新规则状态失败: " + e.getMessage());
+                            e.printStackTrace();
+                            showAlert(Alert.AlertType.ERROR, "错误", "更新规则状态失败: " + e.getMessage());
+                        }
+                    }
+                });
+            }
+
             @Override
             protected void updateItem(Boolean item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
-                    setText(null);
                     setGraphic(null);
                 } else {
-                    setText(item ? "✓" : "✗");
-                    setStyle(item ? "-fx-text-fill: #4caf50; -fx-font-weight: bold;" : "-fx-text-fill: #f44336;");
+                    checkBox.setSelected(item);
+                    setGraphic(checkBox);
                 }
             }
         });
@@ -724,8 +790,159 @@ public class MainController implements Initializable {
 
     private void initializeMonitorTab() {
         // 初始化文件监控标签页
+        setupMonitoredFilesTable();
 
     }
+    private void setupMonitoredFilesTable() {
+        if (monitoredFilesTable == null) return;
+
+        // 文件名
+        monitoredFileNameColumn.setCellValueFactory(
+                new javafx.scene.control.cell.PropertyValueFactory<>("fileName"));
+
+        // 路径
+        monitoredFilePathColumn.setCellValueFactory(
+                new javafx.scene.control.cell.PropertyValueFactory<>("filePath"));
+
+        // 类型
+        monitoredFileTypeColumn.setCellValueFactory(data -> {
+            FileRecord record = data.getValue();
+            String type = record != null && Boolean.TRUE.equals(record.getIsFolder()) ? "文件夹" : "文件";
+            return new javafx.beans.property.SimpleStringProperty(type);
+        });
+
+        // 大小
+        monitoredFileSizeColumn.setCellValueFactory(data -> {
+            FileRecord record = data.getValue();
+            if (record == null || Boolean.TRUE.equals(record.getIsFolder())) {
+                return new javafx.beans.property.SimpleStringProperty("-");
+            }
+            try {
+                java.nio.file.Path path = java.nio.file.Paths.get(record.getFilePath());
+                long size = java.nio.file.Files.size(path);
+                return new javafx.beans.property.SimpleStringProperty(formatFileSize(size));
+            } catch (Exception e) {
+                return new javafx.beans.property.SimpleStringProperty("-");
+            }
+        });
+
+        // 修改时间
+        monitoredFileModifiedColumn.setCellValueFactory(data -> {
+            FileRecord record = data.getValue();
+            if (record == null) {
+                return new javafx.beans.property.SimpleStringProperty("-");
+            }
+            try {
+                java.nio.file.Path path = java.nio.file.Paths.get(record.getFilePath());
+                java.nio.file.attribute.BasicFileAttributes attrs =
+                        java.nio.file.Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes.class);
+                java.time.LocalDateTime modTime = java.time.LocalDateTime.ofInstant(
+                        attrs.lastModifiedTime().toInstant(), java.time.ZoneId.systemDefault());
+                return new javafx.beans.property.SimpleStringProperty(
+                        modTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            } catch (Exception e) {
+                return new javafx.beans.property.SimpleStringProperty("-");
+            }
+        });
+
+        // 监听文件选择事件，显示文件详情
+        monitoredFilesTable.getSelectionModel().selectedItemProperty().addListener(
+                (observable, oldValue, newValue) -> showFileDetails(newValue));
+    }
+
+    private String formatFileSize(long size) {
+        if (size < 1024) {
+            return size + " B";
+        } else if (size < 1024 * 1024) {
+            return String.format("%.1f KB", size / 1024.0);
+        } else if (size < 1024 * 1024 * 1024) {
+            return String.format("%.1f MB", size / (1024.0 * 1024.0));
+        } else {
+            return String.format("%.1f GB", size / (1024.0 * 1024.0 * 1024.0));
+        }
+    }
+    private void showFileDetails(FileRecord fileRecord) {
+        if (fileRecord == null) {
+            fileDetailsPane.setVisible(false);
+            noFileSelectedLabel.setVisible(true);
+            return;
+        }
+
+        fileDetailsPane.setVisible(true);
+        noFileSelectedLabel.setVisible(false);
+
+        detailFileName.setText(fileRecord.getFileName());
+        detailFilePath.setText(fileRecord.getFilePath());
+
+        // 获取文件大小
+        if (Boolean.TRUE.equals(fileRecord.getIsFolder())) {
+            detailFileSize.setText("-");
+            detailFileType.setText("文件夹");
+        } else {
+            try {
+                java.nio.file.Path path = java.nio.file.Paths.get(fileRecord.getFilePath());
+                long size = java.nio.file.Files.size(path);
+                detailFileSize.setText(formatFileSize(size));
+
+                // 获取文件类型（扩展名）
+                String fileName = fileRecord.getFileName();
+                int lastDot = fileName.lastIndexOf('.');
+                String extension = lastDot > 0 ? fileName.substring(lastDot + 1).toUpperCase() : "未知";
+                detailFileType.setText(extension);
+            } catch (Exception e) {
+                detailFileSize.setText("-");
+                detailFileType.setText("未知");
+            }
+        }
+
+        // 获取修改时间
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(fileRecord.getFilePath());
+            java.nio.file.attribute.BasicFileAttributes attrs =
+                    java.nio.file.Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes.class);
+            java.time.LocalDateTime modTime = java.time.LocalDateTime.ofInstant(
+                    attrs.lastModifiedTime().toInstant(), java.time.ZoneId.systemDefault());
+            detailFileModified.setText(modTime.format(
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        } catch (Exception e) {
+            detailFileModified.setText("-");
+        }
+    }
+
+    @FXML
+    private void handleRefreshFileList() {
+        loadMonitoredFiles();
+    }
+
+    private void loadMonitoredFiles() {
+        try {
+            if (fileRecordDAO == null) {
+                System.err.println("错误：fileRecordDAO 尚未注入");
+                return;
+            }
+
+            List<FileRecord> allFiles = fileRecordDAO.getAllFileRecords();
+            ObservableList<FileRecord> observableFiles = FXCollections.observableArrayList(allFiles);
+
+            monitoredFilesTable.setItems(observableFiles);
+
+            // 更新状态栏文件计数
+            if (statusFileCount != null) {
+                statusFileCount.setText(String.valueOf(allFiles.size()));
+            }
+            if (totalFilesLabel != null) {
+                totalFilesLabel.setText(String.valueOf(allFiles.size()));
+            }
+
+            System.out.println("已加载 " + allFiles.size() + " 个监控文件");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("加载监控文件失败：" + e.getMessage());
+        }
+    }
+
+
 
     private void loadFileActivities() {
         try {
@@ -944,6 +1161,17 @@ public class MainController implements Initializable {
     public void setOrganizeRuleDAO(com.smartfilemanager.dao.OrganizeRuleDAO organizeRuleDAO) {
         this.organizeRuleDAO = organizeRuleDAO;
         System.out.println("OrganizeRuleDAO 注入成功");
+    }
+
+    /**
+     * 注入 FileRecordDAO（由 SmartFileManagerApp 调用）
+     */
+    public void setFileRecordDAO(com.smartfilemanager.dao.FileRecordDAO fileRecordDAO) {
+        this.fileRecordDAO = fileRecordDAO;
+        System.out.println("FileRecordDAO 注入成功");
+    }
+
+    public void handleRefreshFileList(ActionEvent actionEvent) {
     }
 
     // ========== 数据模型类 ==========

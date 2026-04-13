@@ -491,6 +491,24 @@
                             </TableView>
                         </VBox>
                     </HBox>
+                    <Separator/>
+
+                    <HBox spacing="10" alignment="CENTER_LEFT">
+                        <Label text="📁 监控文件夹中的文件" style="-fx-font-size: 16; -fx-font-weight: bold;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="刷新文件列表" onAction="#handleRefreshFileList"/>
+                    </HBox>
+
+                    <TableView fx:id="monitoredFilesTable" VBox.vgrow="ALWAYS">
+                        <columns>
+                            <TableColumn text="文件名" fx:id="monitoredFileNameColumn" prefWidth="250"/>
+                            <TableColumn text="路径" fx:id="monitoredFilePathColumn" prefWidth="300"/>
+                            <TableColumn text="类型" fx:id="monitoredFileTypeColumn" prefWidth="80"/>
+                            <TableColumn text="大小" fx:id="monitoredFileSizeColumn" prefWidth="100"/>
+                            <TableColumn text="修改时间" fx:id="monitoredFileModifiedColumn" prefWidth="150"/>
+                        </columns>
+                    </TableView>
+
                 </VBox>
             </Tab>
 
