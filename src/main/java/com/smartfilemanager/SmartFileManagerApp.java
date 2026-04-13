@@ -2,7 +2,9 @@ package com.smartfilemanager;
 
 import com.smartfilemanager.dao.FileActivityDAO;
 import com.smartfilemanager.dao.MonitorFoldersDAO;
+import com.smartfilemanager.dao.TagDAO;
 import com.smartfilemanager.service.core.FileMonitorService;
+import com.smartfilemanager.service.rule.TagService;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -70,6 +72,23 @@ public class SmartFileManagerApp extends Application {
                     System.out.println("FileRecordDAO 注入成功");
                 } catch (Exception e) {
                     System.err.println("FileRecordDAO 注入失败: " + e.getMessage());
+                }
+
+                // 注入 TagDAO（用于标签管理）
+                try {
+                    TagDAO tagDAO = applicationContext.getBean(TagDAO.class);
+                    controller.setTagDAO(tagDAO);
+                    System.out.println("TagDAO 注入成功");
+                } catch (Exception e) {
+                    System.err.println("TagDAO 注入失败: " + e.getMessage());
+                }
+                // 注入 TagService（用于标签业务逻辑）
+                try {
+                    TagService tagService = applicationContext.getBean(TagService.class);
+                    controller.setTagService(tagService);
+                    System.out.println("TagService 注入成功");
+                } catch (Exception e) {
+                    System.err.println("TagService 注入失败: " + e.getMessage());
                 }
 
                 // 从 Spring 容器获取 FileMonitorService

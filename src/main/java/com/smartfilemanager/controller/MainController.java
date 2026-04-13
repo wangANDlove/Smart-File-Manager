@@ -4,11 +4,14 @@ import com.smartfilemanager.dao.DatabaseManager;
 import com.smartfilemanager.dao.FileActivityDAO;
 import com.smartfilemanager.dao.MonitorFoldersDAO;
 import com.smartfilemanager.dao.OrganizeRuleDAO;
+import com.smartfilemanager.dao.TagDAO;
 import com.smartfilemanager.model.domain.ActivityRecord;
 import com.smartfilemanager.model.domain.FileRecord;
 import com.smartfilemanager.model.domain.MonitorFolders;
 import com.smartfilemanager.model.domain.OrganizeRule;
+import com.smartfilemanager.model.domain.Tag;
 import com.smartfilemanager.service.core.FileMonitorService;
+import com.smartfilemanager.service.rule.TagService;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -17,14 +20,15 @@ import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
-import lombok.Data;
-import org.springframework.beans.factory.annotation.Autowired;
+import javafx.scene.Node;
+
 import org.springframework.stereotype.Controller;
 
 import java.io.IOException;
 import java.net.URL;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
@@ -129,6 +133,10 @@ public class MainController implements Initializable {
 
     private FileActivityDAO fileActivityDAO;
 
+    private TagDAO tagDAO;
+
+    private TagService tagService;
+
     private com.smartfilemanager.dao.OrganizeRuleDAO organizeRuleDAO;
 
     MonitorFoldersDAO monitorFoldersDAO;
@@ -144,9 +152,12 @@ public class MainController implements Initializable {
         setupEventHandlers();
         // 初始化监控状态
         initializeMonitorStatus();
+        loadTags();
 
 
     }
+
+
 
     public void initialize(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -673,14 +684,112 @@ public class MainController implements Initializable {
 
     // ========== 右侧面板事件处理方法 ==========
 
+    /**
+     * 打开文件方法
+     */
     @FXML
     private void handleOpenFile() {
-        // 打开文件
+        FileRecord selectedFile = monitoredFilesTable.getSelectionModel().getSelectedItem();
+        if (selectedFile == null) {
+            showAlert(Alert.AlertType.WARNING, "提示", "请先选择一个文件");
+            return;
+        }
+
+        try {
+            java.io.File file = new java.io.File(selectedFile.getFilePath());
+            if (!file.exists()) {
+                showAlert(Alert.AlertType.ERROR, "错误", "文件不存在: " + selectedFile.getFilePath());
+                return;
+            }
+
+            // 根据操作系统使用不同的命令打开文件
+            String os = System.getProperty("os.name").toLowerCase();
+
+            if (os.contains("win")) {
+                // Windows
+                Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start", "", file.getAbsolutePath()});
+            } else if (os.contains("mac")) {
+                // macOS
+                Runtime.getRuntime().exec(new String[]{"open", file.getAbsolutePath()});
+            } else if (os.contains("nix") || os.contains("nux") || os.contains("aix")) {
+                // Linux
+                Runtime.getRuntime().exec(new String[]{"xdg-open", file.getAbsolutePath()});
+            } else {
+                // 尝试使用 Desktop API
+                if (java.awt.Desktop.isDesktopSupported()) {
+                    java.awt.Desktop desktop = java.awt.Desktop.getDesktop();
+                    if (desktop.isSupported(java.awt.Desktop.Action.OPEN)) {
+                        desktop.open(file);
+                    } else {
+                        showAlert(Alert.AlertType.ERROR, "错误", "系统不支持打开此类型文件");
+                        return;
+                    }
+                } else {
+                    showAlert(Alert.AlertType.ERROR, "错误", "当前系统不支持桌面操作");
+                    return;
+                }
+            }
+
+            System.out.println("已打开文件: " + selectedFile.getFilePath());
+
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR, "错误", "打开文件失败: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
+    /**
+     * 打开文件位置
+     */
     @FXML
     private void handleOpenFileLocation() {
-        // 打开文件位置
+        FileRecord selectedFile = monitoredFilesTable.getSelectionModel().getSelectedItem();
+        if (selectedFile == null) {
+            showAlert(Alert.AlertType.WARNING, "提示", "请先选择一个文件");
+            return;
+        }
+
+        try {
+            java.io.File file = new java.io.File(selectedFile.getFilePath());
+            if (!file.exists()) {
+                showAlert(Alert.AlertType.ERROR, "错误", "文件不存在: " + selectedFile.getFilePath());
+                return;
+            }
+
+            // 根据操作系统使用不同的命令打开文件夹
+            String os = System.getProperty("os.name").toLowerCase();
+
+            if (os.contains("win")) {
+                // Windows - 打开文件夹并选中文件
+                Runtime.getRuntime().exec(new String[]{"explorer", "/select,", file.getAbsolutePath()});
+            } else if (os.contains("mac")) {
+                // macOS - 打开 Finder 并选中文件
+                Runtime.getRuntime().exec(new String[]{"open", "-R", file.getAbsolutePath()});
+            } else if (os.contains("nix") || os.contains("nux") || os.contains("aix")) {
+                // Linux - 打开父目录
+                Runtime.getRuntime().exec(new String[]{"xdg-open", file.getParent()});
+            } else {
+                // 尝试使用 Desktop API
+                if (java.awt.Desktop.isDesktopSupported()) {
+                    java.awt.Desktop desktop = java.awt.Desktop.getDesktop();
+                    if (desktop.isSupported(java.awt.Desktop.Action.OPEN)) {
+                        desktop.open(file.getParentFile());
+                    } else {
+                        showAlert(Alert.AlertType.ERROR, "错误", "系统不支持打开文件夹");
+                        return;
+                    }
+                } else {
+                    showAlert(Alert.AlertType.ERROR, "错误", "当前系统不支持桌面操作");
+                    return;
+                }
+            }
+
+            System.out.println("已打开文件位置: " + selectedFile.getFilePath());
+
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR, "错误", "打开文件位置失败: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     @FXML
@@ -847,7 +956,8 @@ public class MainController implements Initializable {
 
         // 监听文件选择事件，显示文件详情
         monitoredFilesTable.getSelectionModel().selectedItemProperty().addListener(
-                (observable, oldValue, newValue) -> showFileDetails(newValue));
+                (observable, oldValue, newValue) -> showFileDetailsWithTags(newValue));
+
     }
 
     private String formatFileSize(long size) {
@@ -1094,6 +1204,111 @@ public class MainController implements Initializable {
         // 加载系统状态
     }
 
+    private void loadTags() {
+        try {
+            if (tagService == null) return;
+
+            List<Map<String, Object>> popularTags = tagService.getPopularTags(10);
+            displayTagCloud(popularTags);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void displayTagCloud(List<Map<String, Object>> popularTags) {
+        if (tagCloudPane == null) return;
+
+        tagCloudPane.getChildren().clear();
+
+        for (Map<String, Object> tagInfo : popularTags) {
+            Label tagLabel = new Label(tagInfo.get("name").toString());
+            tagLabel.getStyleClass().add("tag-label");
+
+            String color = tagInfo.get("color").toString();
+            tagLabel.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; -fx-padding: 5 10; -fx-background-radius: 15;");
+
+            int usageCount = (Integer) tagInfo.get("usageCount");
+            double fontSize = Math.min(14 + usageCount * 0.5, 24);
+            tagLabel.setStyle(tagLabel.getStyle() + " -fx-font-size: " + fontSize + "px;");
+
+            tagLabel.setOnMouseClicked(e -> handleTagClick((Integer) tagInfo.get("id")));
+
+            tagCloudPane.getChildren().add(tagLabel);
+        }
+    }
+
+    private void handleTagClick(Integer tagId) {
+        try {
+            List<String> fileIds = tagService.searchFilesByTags(List.of(tagId));
+            filterFilesByIds(fileIds);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void filterFilesByIds(List<String> fileIds) {
+        try {
+            List<FileRecord> allFiles = fileRecordDAO.getAllFileRecords();
+            List<FileRecord> filteredFiles = allFiles.stream()
+                    .filter(f -> fileIds.contains(f.getFileId()))
+                    .collect(Collectors.toList());
+
+            monitoredFilesTable.setItems(FXCollections.observableArrayList(filteredFiles));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void showFileDetailsWithTags(FileRecord fileRecord) {
+        if (fileRecord == null) {
+            fileDetailsPane.setVisible(false);
+            noFileSelectedLabel.setVisible(true);
+            return;
+        }
+
+        fileDetailsPane.setVisible(true);
+        noFileSelectedLabel.setVisible(false);
+
+        detailFileName.setText(fileRecord.getFileName());
+        detailFilePath.setText(fileRecord.getFilePath());
+
+        if (Boolean.TRUE.equals(fileRecord.getIsFolder())) {
+            detailFileSize.setText("-");
+            detailFileType.setText("文件夹");
+        } else {
+            try {
+                java.nio.file.Path path = java.nio.file.Paths.get(fileRecord.getFilePath());
+                long size = java.nio.file.Files.size(path);
+                detailFileSize.setText(formatFileSize(size));
+
+                String fileName = fileRecord.getFileName();
+                int lastDot = fileName.lastIndexOf('.');
+                String extension = lastDot > 0 ? fileName.substring(lastDot + 1).toUpperCase() : "未知";
+                detailFileType.setText(extension);
+            } catch (Exception e) {
+                detailFileSize.setText("-");
+                detailFileType.setText("未知");
+            }
+        }
+
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(fileRecord.getFilePath());
+            java.nio.file.attribute.BasicFileAttributes attrs =
+                    java.nio.file.Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes.class);
+            java.time.LocalDateTime modTime = java.time.LocalDateTime.ofInstant(
+                    attrs.lastModifiedTime().toInstant(), java.time.ZoneId.systemDefault());
+            detailFileModified.setText(modTime.format(
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        } catch (Exception e) {
+            detailFileModified.setText("-");
+        }
+
+        loadAndDisplayFileTags(fileRecord.getFileId());
+    }
+
+
+
     public void handleToggleMonitoring(ActionEvent actionEvent) throws IOException {
         //开始监控
         //文件监控页面中的开始监控
@@ -1170,16 +1385,206 @@ public class MainController implements Initializable {
         this.fileRecordDAO = fileRecordDAO;
         System.out.println("FileRecordDAO 注入成功");
     }
+    /**
+     * 注入 TagDAO（由 SmartFileManagerApp 调用）
+     */
+    public void setTagDAO(TagDAO tagDAO) {
+        this.tagDAO = tagDAO;
+        System.out.println("TagDAO 注入成功");
+    }
+
+    /**
+     * 注入 TagService（由 SmartFileManagerApp 调用）
+     */
+    public void setTagService(TagService tagService) {
+        this.tagService = tagService;
+        System.out.println("TagService 注入成功");
+    }
 
     public void handleRefreshFileList(ActionEvent actionEvent) {
     }
 
+    @FXML
+    // ... existing code ...
+    public void handleAddTagToFile(ActionEvent actionEvent) {
+        FileRecord selectedFile = monitoredFilesTable.getSelectionModel().getSelectedItem();
+        if (selectedFile == null) {
+            showAlert(Alert.AlertType.WARNING, "提示", "请先选择一个文件");
+            return;
+        }
+
+        showAddTagDialog(selectedFile);
+    }
+
+    private void showAddTagDialog(FileRecord fileRecord) {
+        if (tagService == null) {
+            showAlert(Alert.AlertType.ERROR, "错误", "标签服务未初始化，请重启应用");
+            System.err.println("错误：tagService 为 null");
+            return;
+        }
+        try {
+            Dialog<String[]> dialog = new Dialog<>();
+            dialog.setTitle("添加标签");
+            dialog.setHeaderText("为文件添加标签: " + fileRecord.getFileName());
+
+            ButtonType addButtonType = new ButtonType("添加", ButtonBar.ButtonData.OK_DONE);
+            dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
+
+            VBox content = new VBox(10);
+            content.setPadding(new javafx.geometry.Insets(20));
+
+            Label instruction = new Label("输入标签名称（多个标签用逗号分隔）:");
+            TextField tagInput = new TextField();
+            tagInput.setPromptText("例如: 工作,重要,文档");
+            tagInput.setPrefWidth(300);
+
+            Label existingTagsLabel = new Label("现有标签:");
+            FlowPane existingTagsPane = new FlowPane(5, 5);
+            existingTagsPane.setPrefWrapLength(280);
+
+            try {
+                List<Tag> existingTags = tagService.getFileTags(fileRecord.getFileId());
+                for (Tag tag : existingTags) {
+                    Label tagLabel = new Label(tag.getName());
+                    tagLabel.setStyle("-fx-background-color: " + tag.getColor() +
+                            "; -fx-text-fill: white; -fx-padding: 3 8; -fx-background-radius: 10; -fx-font-size: 11px;");
+                    existingTagsPane.getChildren().add(tagLabel);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            content.getChildren().addAll(instruction, tagInput, existingTagsLabel, existingTagsPane);
+            dialog.getDialogPane().setContent(content);
+
+            dialog.setResultConverter(dialogButton -> {
+                if (dialogButton == addButtonType) {
+                    String input = tagInput.getText().trim();
+                    if (input.isEmpty()) {
+                        return null;
+                    }
+                    return input.split("\\s*,\\s*");
+                }
+                return null;
+            });
+
+            dialog.showAndWait().ifPresent(tagNames -> {
+                try {
+                    for (String tagName : tagNames) {
+                        if (!tagName.trim().isEmpty()) {
+                            tagService.addTagToFile(fileRecord.getFileId(), tagName.trim());
+                        }
+                    }
+
+                    showAlert(Alert.AlertType.INFORMATION, "成功",
+                            "已为文件添加 " + tagNames.length + " 个标签");
+
+                    loadAndDisplayFileTags(fileRecord.getFileId());
+                    loadTags();
+
+                } catch (Exception e) {
+                    showAlert(Alert.AlertType.ERROR, "错误", "添加标签失败: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            });
+
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR, "错误", "打开标签对话框失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void loadAndDisplayFileTags(String fileId) {
+        try {
+            if (tagService == null) return;
+
+            List<Tag> tags = tagService.getFileTags(fileId);
+            detailFileTags.getChildren().clear();
+
+            for (Tag tag : tags) {
+                Label tagLabel = new Label(tag.getName());
+                tagLabel.setStyle("-fx-background-color: " + tag.getColor() +
+                        "; -fx-text-fill: white; -fx-padding: 3 8; -fx-background-radius: 10; -fx-font-size: 11px;");
+
+                tagLabel.setCursor(javafx.scene.Cursor.HAND);
+
+                tagLabel.setUserData(tag);
+
+                tagLabel.setOnMouseClicked(e -> {
+                    detailFileTags.getChildren().forEach(child -> child.getStyleClass().remove("selected-tag"));
+                    tagLabel.getStyleClass().add("selected-tag");
+                });
+
+                detailFileTags.getChildren().add(tagLabel);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    @FXML
+    private void handleRemoveTagFromFile(ActionEvent actionEvent) {
+        FileRecord selectedFile = monitoredFilesTable.getSelectionModel().getSelectedItem();
+        if (selectedFile == null) {
+            showAlert(Alert.AlertType.WARNING, "提示", "请先选择一个文件");
+            return;
+        }
+
+        // 查找选中的标签
+        Node tagNodeToRemove = null;
+        Tag tagToRemove = null;
+
+        for (Node node : detailFileTags.getChildren()) {
+            if (node.getStyleClass().contains("selected-tag")) {
+                tagNodeToRemove = node;
+                tagToRemove = (Tag) node.getUserData();
+                break;
+            }
+        }
+
+        if (tagToRemove == null) {
+            showAlert(Alert.AlertType.WARNING, "提示", "请先点击选中标签");
+            return;
+        }
+
+        // 保存为 final 变量供 lambda 使用
+        final Node finalTagNode = tagNodeToRemove;
+        final Tag finalTag = tagToRemove;
+
+        Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmAlert.setTitle("确认删除");
+        confirmAlert.setHeaderText(null);
+        confirmAlert.setContentText("确定要从文件中删除标签 \"" + finalTag.getName() + "\" 吗？");
+
+        confirmAlert.showAndWait().ifPresent(result -> {
+            if (result == ButtonType.OK) {
+                try {
+                    tagDAO.removeTagFromFile(selectedFile.getFileId(), finalTag.getId());
+
+                    detailFileTags.getChildren().remove(finalTagNode);
+
+                    showAlert(Alert.AlertType.INFORMATION, "成功", "标签已删除");
+
+                    loadTags();
+
+                    System.out.println("已删除标签: " + finalTag.getName());
+
+                } catch (Exception e) {
+                    showAlert(Alert.AlertType.ERROR, "错误", "删除标签失败: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+        });
+    }
+
+
+
+
     // ========== 数据模型类 ==========
 
 
-//    public static class Rule {
-//        // 规则数据模型
-//    }
 
     public static class FileActivity {
         // 文件活动数据模型

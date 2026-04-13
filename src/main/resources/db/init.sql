@@ -56,5 +56,31 @@ CREATE TABLE IF NOT EXISTS rule_conditions (
 
 CREATE INDEX IF NOT EXISTS idx_rule_id ON rule_conditions(rule_id);
 
+-- 标签表
+CREATE TABLE IF NOT EXISTS tags (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    name TEXT NOT NULL UNIQUE,
+                                    color TEXT DEFAULT '#4A90E2',
+                                    usage_count INTEGER DEFAULT 0,
+                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 文件标签关联表（多对多）
+CREATE TABLE IF NOT EXISTS file_tags (
+                                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                         file_id TEXT NOT NULL,
+                                         tag_id INTEGER NOT NULL,
+                                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                         FOREIGN KEY (file_id) REFERENCES file_records(file_id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+    UNIQUE (file_id, tag_id)
+    );
+
+-- 创建索引优化查询性能
+CREATE INDEX IF NOT EXISTS idx_file_tags_file_id ON file_tags(file_id);
+CREATE INDEX IF NOT EXISTS idx_file_tags_tag_id ON file_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
+CREATE INDEX IF NOT EXISTS idx_tags_usage_count ON tags(usage_count);
+
 
 

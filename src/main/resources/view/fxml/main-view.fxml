@@ -397,40 +397,7 @@
                             <TableColumn fx:id="ruleConditionCountColumn" text="条件数" prefWidth="80"/>
                         </columns>
                     </TableView>
-<!--                    <TableView fx:id="rulesTable" VBox.vgrow="ALWAYS">-->
-<!--                        <columns>-->
-<!--                            <TableColumn text="启用" prefWidth="50">-->
-<!--                                <cellValueFactory>-->
-<!--                                    <PropertyValueFactory property="enabled"/>-->
-<!--                                </cellValueFactory>-->
-<!--                            </TableColumn>-->
-<!--                            <TableColumn text="规则名称" prefWidth="180">-->
-<!--                                <cellValueFactory>-->
-<!--                                    <PropertyValueFactory property="name"/>-->
-<!--                                </cellValueFactory>-->
-<!--                            </TableColumn>-->
-<!--                            <TableColumn text="条件" prefWidth="200">-->
-<!--                                <cellValueFactory>-->
-<!--                                    <PropertyValueFactory property="condition"/>-->
-<!--                                </cellValueFactory>-->
-<!--                            </TableColumn>-->
-<!--                            <TableColumn text="目标文件夹" prefWidth="250">-->
-<!--                                <cellValueFactory>-->
-<!--                                    <PropertyValueFactory property="targetPath"/>-->
-<!--                                </cellValueFactory>-->
-<!--                            </TableColumn>-->
-<!--                            <TableColumn text="优先级" prefWidth="60">-->
-<!--                                <cellValueFactory>-->
-<!--                                    <PropertyValueFactory property="priority"/>-->
-<!--                                </cellValueFactory>-->
-<!--                            </TableColumn>-->
-<!--                            <TableColumn text="操作" prefWidth="100">-->
-<!--                                <cellValueFactory>-->
-<!--                                    <PropertyValueFactory property="actions"/>-->
-<!--                                </cellValueFactory>-->
-<!--                            </TableColumn>-->
-<!--                        </columns>-->
-<!--                    </TableView>-->
+
 
                     <HBox spacing="10" alignment="CENTER_RIGHT">
                         <Label text="共" fx:id="totalRulesCountLabel" />
@@ -598,7 +565,20 @@
 
                     <Separator/>
 
-                    <Label text="标签:" style="-fx-font-weight: bold;"/>
+                    <HBox alignment="CENTER_LEFT">
+                        <Label text="标签:" style="-fx-font-weight: bold;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="+" onAction="#handleAddTagToFile"                                style="-fx-font-size: 14; -fx-padding: 2 8; -fx-min-width: 25;">
+                            <tooltip>
+                                <Tooltip text="添加标签"/>
+                            </tooltip>
+                        </Button>
+                        <Button text="-" onAction="#handleRemoveTagFromFile"                                style="-fx-font-size: 14; -fx-padding: 2 8; -fx-min-width: 25;">
+                            <tooltip>
+                                <Tooltip text="删除选中标签"/>
+                            </tooltip>
+                        </Button>
+                    </HBox>
                     <FlowPane fx:id="detailFileTags" hgap="5" vgap="5"/>
 
                     <HBox spacing="5">

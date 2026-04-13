@@ -177,6 +177,35 @@
     -fx-cursor: hand;
 }
 
+/* 标签云样式 */
+.tag-label {
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 4, 0, 0, 2);
+    -fx-transition: all 0.2s ease;
+}
+
+.tag-label:hover {
+    -fx-scale-x: 1.1;
+    -fx-scale-y: 1.1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 6, 0, 0, 3);
+}
+
+/* 详情面板标签样式 */
+#detailFileTags {
+    -fx-hgap: 5;
+    -fx-vgap: 5;
+}
+
+/* 选中标签样式 */
+.selected-tag {
+    -fx-border-color: #FF6B6B;
+    -fx-border-width: 2px;
+    -fx-border-radius: 10;
+    -fx-effect: dropshadow(gaussian, rgba(255, 107, 107, 0.5), 8, 0, 0, 0);
+}
+
+
+
 /* 标签页样式 */
 .tab-pane {
     -fx-background-color: transparent;
